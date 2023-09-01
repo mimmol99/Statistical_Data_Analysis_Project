@@ -43,7 +43,8 @@ cat("Length of y_test is ", length(y_test), "\n")
 #CORRELATION MATRIX
 corData <- round(cor(x_train), digits = 2) 
 corrplot(corData, cex = 0.22, show.legend = TRUE, main = "Correlation Matrix") 
-pdf(file="Images/R/Correlation_Matrix.pdf", width=26, height=15)
+
+
 
 
 # MULTIPLE LINEAR REGRESSION
