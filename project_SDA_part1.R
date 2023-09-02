@@ -92,7 +92,7 @@ cat("significant predictors for multiple linear regression:",significant_coeff_n
 ascii_codes <- round(significant_coeff_values / 100)
 # Convert to ASCII characters
 characters <- intToUtf8(ascii_codes)
-cat("clue using simple linear regression:",characters)
+cat("clue using multiple linear regression:",characters)
 
 # Make predictions on test data
 predictions_mlr <- predict(multiple_lr_fit, newdata = data_frame_test)
@@ -109,29 +109,41 @@ cat("Test Mean Squared Error (MSE) of multiple linear regression is:", mse, "\n"
 
 
 
-#Analysis function
+#Analysis functions
+
+coeff_analysis <- function(model,file_name){
+  for (metric in c("bic", "Cp", "adjr2")){
+    png(filename = paste(images_path, paste("/",file_name,"_coeff_plot_", metric, ".png", sep=""), sep = ""))
+    plot(model, scale = metric)
+    dev.off()
+    
+  }
+  
+}
+
 oser_analysis <- function(reg_summary, file_name) {
   oser_indexes <- list()
   cat("Analysing ",file_name," .. \n")
-  for (reg_summary_name in c("bic", "cp", "adjr2","rss")) {
-    png(filename = paste(images_path, paste("/", file_name, "_plot_", reg_summary_name, ".png", sep=""), sep = ""))
+  for (metric in c("bic", "cp", "adjr2")) {  # Removed "rss"
+    png(filename = paste(images_path, paste("/", file_name, "_osre_plot_", metric, ".png", sep=""), sep = ""))
     # Existing code for generating plots
-    reg_summary <- reg.summary[[reg_summary_name]]
-    if (reg_summary_name == "adjr2") {
-      idx <- which.max(reg_summary)
+    reg_summary_metric <- reg_summary[[metric]]  # Use a different variable to avoid overwriting
+    
+    if (metric == "adjr2") {
+      idx <- which.max(reg_summary_metric)
     } else {
-      idx <- which.min(reg_summary)
+      idx <- which.min(reg_summary_metric)
     }
-    se <- sd(reg_summary) / sqrt(length(x_train))
-    indexes <- which(reg_summary >= (reg_summary[idx] - se) & reg_summary <= (reg_summary[idx] + se))
+    se <- sd(reg_summary_metric) / sqrt(length(x_train))
+    indexes <- which(reg_summary_metric >= (reg_summary_metric[idx] - se) & reg_summary_metric <= (reg_summary_metric[idx] + se))
     min_index <- min(indexes)
-    oser_indexes[[reg_summary_name]] <- min_index
-    plot(reg_summary, xlab = "Number of Variables", ylab = reg_summary_name, type = "l")
-    points(idx, reg_summary[idx], col = "blue", cex = 2, pch = 20)
-    points(min_index, reg_summary[min_index], col = "red", cex = 2, pch = 20)
+    oser_indexes[[metric]] <- min_index
+    plot(reg_summary_metric, xlab = "Number of Variables", ylab = metric, type = "l")
+    points(idx, reg_summary_metric[idx], col = "blue", cex = 2, pch = 20)
+    points(min_index, reg_summary_metric[min_index], col = "red", cex = 2, pch = 20)
     # Add horizontal lines
-    abline(h = reg_summary[idx] - se, col = "green", lty = 2)
-    abline(h = reg_summary[idx] + se, col = "green", lty = 2)
+    abline(h = reg_summary_metric[idx] - se, col = "green", lty = 2)
+    abline(h = reg_summary_metric[idx] + se, col = "green", lty = 2)
     legend("right", c("Optimal", "One SE Rule", "One Se limits"), col = c("blue", "red", "green"), pch = c(20, 20, NA), lty = c(NA, NA, 2), cex = 0.6, inset = c(0.05, 0.05))
     
     # Close the PNG device
@@ -161,18 +173,21 @@ oser_analysis <- function(reg_summary, file_name) {
 
 #BEST SUBSET SELECTION
 regfit.full<-regsubsets(x_train,y_train,nvmax = 8,really.big = T)
+coeff_analysis(regfit.full,"best_subset_selection")
 reg.summary<-summary(regfit.full)
 oser_analysis(reg.summary,"best_subset_selection")
 
 
 #FORWARD SELECTION
-fwd.regfit <- regsubsets(x_train,y_train,method = "forward") # Forward selection on the training data
+fwd.regfit <- regsubsets(x_train,y_train,,method = "forward",really.big = T) # Forward selection on the training data
+coeff_analysis(fwd.regfit,"forward_stepwise")
 summary_fwd_regfit <- summary(fwd.regfit) # Summary of the results of forward selection
 oser_analysis(summary_fwd_regfit,"forward_stepwise")
 
 
 #BACKWARD SELECTION
-bwd.regfit <- regsubsets(x_train,y_train,method = "backward") # Forward selection on the training data
+bwd.regfit <- regsubsets(x_train,y_train,method = "backward",really.big = T) # Backward selection on the training data
+coeff_analysis(bwd.regfit,"backward_stepwise")
 summary_bwd_regfit <- summary(bwd.regfit)
 oser_analysis(summary_bwd_regfit,"backward_stepwise")
 
