@@ -11,7 +11,7 @@ import seaborn as sns
 import pickle
 import random
 
-images_path = os.path.join(os.getcwd(),'Images')
+
 
 #Caricamento dei dati
 def load_data(file_name):
@@ -57,7 +57,7 @@ def correlation_dimensionality_reduction(x, min_corr=0.75):
     # Step 3: Remove correlated variables
     X_reduced = X.drop(columns=to_drop)
     # Print information about deleted variables
-    print(f"After correlation deleted {len(to_drop)} variables: {to_drop}")
+    print(f"After correlation deleted {len(to_drop)} feature(s): {to_drop}")
     return X_reduced,to_drop
 
 def drop_columns(x,columns_to_drop):
@@ -74,7 +74,7 @@ def pca_dimensionality_reduction(X,file_path,min_variance=0.95):
     plot_variance(pca_scaled.explained_variance_ratio_,cumulative_variance_scaled, np.arange(n_components), 'Principal components scaled', 'Variance ratio','variance on features standardized',file_path=file_path)
     # Find the number of components for at least min variance
     n_components_min_variance = np.argmax(cumulative_variance_scaled >= min_variance) + 1
-    print(f"After PCA deleted {n_components-n_components_min_variance}")
+    print(f"After PCA deleted {n_components-n_components_min_variance} features")
     # Implementare il codice per la riduzione della dimensionalità
     pca_reducer = PCA(n_components_min_variance)
     features_reduced = pca_reducer.fit_transform(features_standardized)
@@ -170,7 +170,7 @@ def evaluate_step_sizes(X, y,step_sizes,epochs,file_path):
             beta_best = beta
             pred_best = pred
             best_step_size = step_size
-    print(f"Best Logistic Classifier Accuracy with step size {best_step_size}: {highest_accuracy}")
+    print(f"Best Logistic Classifier Accuracy with step size {best_step_size}: {round(highest_accuracy,3)}")
     print('==============================================')
     plot_accuracy_step_sizes(accuracies,step_sizes,file_path)
     return pred_best, beta_best
@@ -226,6 +226,9 @@ def plot_correlation_matrix(x,filename):
     plt.clf()
 
 if __name__ == "__main__":
+
+    images_path = os.path.join(os.getcwd(),'Images_part2')
+    
     if os.path.exists(images_path) is False:
         os.makedirs(images_path)
     #load data
@@ -255,7 +258,7 @@ if __name__ == "__main__":
     print("Features arrays reduced:", len(x_corr_pca_reduced))
     print("Features per train array reduced:", len(x_corr_pca_reduced[0]))
     print('==============================================')
-    print('Test...')
+    print('Training...')
     if not os.path.exists('weights.pickle'):
         #step sizes
         step_sizes = [0.00001,0.0001,0.001, 0.01, 0.1, 1]
@@ -264,17 +267,22 @@ if __name__ == "__main__":
     else:
         with open('weights.pickle', 'rb') as handle:
             best_beta = pickle.load(handle)
+    print('==============================================')
+    print('Reducing test data..')
     x_test_corr_pca_reduced = pca_reducer.transform(x_test_corr_reduced)
     print("Lenght array test set reduced:",len(x_test_corr_pca_reduced[0]))
     print('==============================================')
+    print('Inference on test..')
     #predictions on test data
     predictions = logistic_inference(x_test_corr_pca_reduced,best_beta)
     #convert predictions to binary
+    print('Converting predictions in binary and then in characters..')
     binary_bytes = decision_rule(predictions)
     #convert binary to ascii
     characters = to_ascii(binary_bytes)
     print(f"characters found :{characters}")
     print('==============================================')
+    
     #optional saving
     #with open('weights.pickle', 'wb') as handle:
     #    pickle.dump(best_beta, handle)
