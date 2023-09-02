@@ -179,14 +179,14 @@ oser_analysis(reg.summary,"best_subset_selection")
 
 
 #FORWARD SELECTION
-fwd.regfit <- regsubsets(x_train,y_train,,method = "forward",really.big = T) # Forward selection on the training data
+fwd.regfit <- regsubsets(x_train,y_train,nvmax=50,method = "forward",really.big = T) # Forward selection on the training data
 coeff_analysis(fwd.regfit,"forward_stepwise")
 summary_fwd_regfit <- summary(fwd.regfit) # Summary of the results of forward selection
 oser_analysis(summary_fwd_regfit,"forward_stepwise")
 
 
 #BACKWARD SELECTION
-bwd.regfit <- regsubsets(x_train,y_train,method = "backward",really.big = T) # Backward selection on the training data
+bwd.regfit <- regsubsets(x_train,y_train,nvmax=50,method = "backward",really.big = T) # Backward selection on the training data
 coeff_analysis(bwd.regfit,"backward_stepwise")
 summary_bwd_regfit <- summary(bwd.regfit)
 oser_analysis(summary_bwd_regfit,"backward_stepwise")
