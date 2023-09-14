@@ -32,6 +32,9 @@ y_train = trainData[, 1]
 x_test = as.matrix(testData[, -1])
 y_test = testData[,1]
 
+#matrix
+test.mat <- model.matrix(y_test ~ ., data = testData) #Model matrix for the test data
+
 # Create data frames for training and testing
 data_frame_train <- data.frame(y_train, x_train)
 colnames(data_frame_train)[1] <- "y_train"
@@ -99,11 +102,11 @@ predictions_mlr <- predict(multiple_lr_fit, newdata = data_frame_test)
 # Calculate residuals (difference between observed and predicted values)
 residuals <- y_test - predictions_mlr
 # Calculate the Mean Squared Error (MSE)
-mse <- mean(residuals^2)
+mse_mlr <- mean(residuals^2)
 # Create a data frame for plotting
-mse_df <- data.frame(MSE = mse)
+mse_df <- data.frame(MSE = mse_mlr)
 # Print the MSE value
-cat("Test Mean Squared Error (MSE) of multiple linear regression is:", mse, "\n")
+cat("Test Mean Squared Error (MSE) of multiple linear regression is:", mse_mlr, "\n")
 #test MSE is very high
 
 
@@ -121,9 +124,11 @@ coeff_analysis <- function(model,file_name){
   
 }
 
-oser_analysis <- function(reg_summary, file_name) {
+oser_analysis <- function(reg, file_name) {
   oser_indexes <- list()
   cat("Analysing ",file_name," .. \n")
+  reg_summary <- summary(reg)
+  
   for (metric in c("bic", "cp", "adjr2")) {  # Removed "rss"
     png(filename = paste(images_path, paste("/", file_name, "_osre_plot_", metric, ".png", sep=""), sep = ""))
     # Existing code for generating plots
@@ -144,7 +149,7 @@ oser_analysis <- function(reg_summary, file_name) {
     # Add horizontal lines
     abline(h = reg_summary_metric[idx] - se, col = "green", lty = 2)
     abline(h = reg_summary_metric[idx] + se, col = "green", lty = 2)
-    legend("right", c("Optimal", "One SE Rule", "One Se limits"), col = c("blue", "red", "green"), pch = c(20, 20, NA), lty = c(NA, NA, 2), cex = 0.6, inset = c(0.05, 0.05))
+    legend("right", c("Optimal", "One SE Rule", "One Se limits"), col = c("blue", "red", "green"), pch = c(20, 20, NA), lty = c(NA, NA, 2), cex = 1.2, inset = c(0.05, 0.05))
     
     # Close the PNG device
     dev.off()
@@ -153,9 +158,9 @@ oser_analysis <- function(reg_summary, file_name) {
   oser_indexes_vector <- unlist(oser_indexes)
   mean_oser_index = round(mean(oser_indexes_vector))
   cat("Number of variables selected with OSE rule: ", mean_oser_index, "\n")
-  best_model_coef = coef(regfit.full, id = mean_oser_index)
+  best_model_coef = coef(reg, id = mean_oser_index)
   best_model_coef <- best_model_coef[-1]
-  
+ 
   png(filename = paste(images_path, paste("/", file_name, "_best_model_coef_after_oser_barplot.png", sep=""), sep = ""))
   barplot(best_model_coef, main = "Best Model Coefficients", xlab = "Predictor Variables", ylab = "Coefficient Value")
   dev.off()
@@ -166,6 +171,8 @@ oser_analysis <- function(reg_summary, file_name) {
   ascii_codes <- round(best_model_coef / 100)
   characters <- intToUtf8(ascii_codes)
   cat(paste("Clue using ", file_name, ": "), characters, "\n")
+  
+  return(mean_oser_index)
 }
 
 
@@ -175,29 +182,43 @@ oser_analysis <- function(reg_summary, file_name) {
 regfit.full<-regsubsets(x_train,y_train,nvmax = 8,really.big = T)
 coeff_analysis(regfit.full,"best_subset_selection")
 reg.summary<-summary(regfit.full)
-oser_analysis(reg.summary,"best_subset_selection")
+oser_index <- oser_analysis(regfit.full,"best_subset_selection")
+best_model_coef <- coef(regfit.full , id = oser_index)
+# Make predictions
+pred <- test.mat[, names(best_model_coef)] %*% best_model_coef
+# Compute MSE
+mse_bss <- mean((y_test - pred)^2)
 
 
 #FORWARD SELECTION
 fwd.regfit <- regsubsets(x_train,y_train,nvmax=50,method = "forward",really.big = T) # Forward selection on the training data
 coeff_analysis(fwd.regfit,"forward_stepwise")
 summary_fwd_regfit <- summary(fwd.regfit) # Summary of the results of forward selection
-oser_analysis(summary_fwd_regfit,"forward_stepwise")
+oser_index <- oser_analysis(fwd.regfit,"forward_stepwise")
+best_model_coef <- coef(fwd.regfit , id = oser_index)
+# Make predictions
+pred <- test.mat[, names(best_model_coef)] %*% best_model_coef
+# Compute MSE
+mse_fwd<- mean((y_test - pred)^2)
 
 
 #BACKWARD SELECTION
 bwd.regfit <- regsubsets(x_train,y_train,nvmax=50,method = "backward",really.big = T) # Backward selection on the training data
 coeff_analysis(bwd.regfit,"backward_stepwise")
 summary_bwd_regfit <- summary(bwd.regfit)
-oser_analysis(summary_bwd_regfit,"backward_stepwise")
-
+oser_index <- oser_analysis(bwd.regfit,"backward_stepwise")
+best_model_coef <- coef(fwd.regfit , id = oser_index)
+# Make predictions
+pred <- test.mat[, names(best_model_coef)] %*% best_model_coef
+# Compute MSE
+mse_bwd <- mean((y_test - pred)^2)
 
 
 
 #RIDGE AND LASSO 
 
 # Define lambda sequence
-lambda_seq <- seq(0,20, by=0.1)
+lambda_seq <- seq(0,50, by=0.001)
 
 # Fit Ridge model with specified lambda values
 fit.ridge <- glmnet(x_train, y_train, alpha = 0, lambda = lambda_seq)
@@ -226,22 +247,25 @@ png(filename = paste(images_path, "/lasso_cv_error.png", sep = ""))
 plot(cv.lasso, main="Lasso CV Error")
 dev.off()
 
+
 # Prediction and comparison on test set for Ridge and Lasso
 pred.ridge <- predict(fit.ridge, s = cv.ridge$lambda.min, newx = x_test)
 pred.lasso <- predict(fit.lasso, s = cv.lasso$lambda.min, newx = x_test)
 # Calculate RMSE for Ridge and Lasso
-rmse.ridge <- sqrt(mean((pred.ridge - y_test)^2))
-rmse.lasso <- sqrt(mean((pred.lasso - y_test)^2))
+mse.ridge <-mean((pred.ridge - y_test)^2)
+mse.lasso <-mean((pred.lasso - y_test)^2)
+rmse.ridge <- sqrt(mse.ridge)
+rmse.lasso <- sqrt(mse.lasso)
 
-png(filename = paste(images_path, "/rmse_comparison.png", sep = ""))
-barplot(c(rmse.ridge, rmse.lasso), 
+png(filename = paste(images_path, "/mse_comparison.png", sep = ""))
+barplot(c(mse.ridge, mse.lasso), 
         names.arg=c("Ridge", "Lasso"), 
-        main="RMSE Comparison on Test Set")
+        main="MSE Comparison on Test Set")
 dev.off()
 
 # Identify the model with the lowest RMSE
-lowest_rmse_model <- which.min(c(rmse.ridge, rmse.lasso))
-lowest_rmse_model
+lowest_mse_model <- which.min(c(mse.ridge, mse.lasso))
+lowest_mse_model
 
 # Extract best coefficients based on the model with the lowest RMSE
 if (lowest_rmse_model == 1) {  # Ridge
@@ -261,3 +285,28 @@ ascii_codes <- round(filtered_coef / 100)
 # Convert to ASCII characters
 characters <- intToUtf8(ascii_codes)
 cat("clue using Ridge/Lasso:",characters)
+
+
+#mse comparison
+mse_data <- data.frame(
+  Model = c("MLR", "BSS", "FWD", "BWD", "Ridge", "Lasso"),
+  MSE = c(mse_mlr, mse_bss, mse_fwd, mse_bwd, mse.ridge, mse.lasso)
+)
+# Create and save the plot
+mse_plot <- ggplot(mse_data, aes(x = Model, y = MSE, fill = Model)) +
+  geom_bar(stat = "identity") +
+  ggtitle("Mean Squared Error Comparison") +
+  xlab("Model") +
+  ylab("MSE")
+
+# Save the plot to the specified path
+png(filename = paste(images_path, "/mse_comparison_plot.png", sep = ""))
+print(mse_plot)
+dev.off()
+
+mse_data
+
+
+
+
+
